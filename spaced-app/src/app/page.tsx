@@ -135,6 +135,7 @@ export default function Home() {
         lastReview: undefined,
       })),
     );
+    setNow(resetAt);
     setSessionStats(INITIAL_SESSION);
     setShowAnswer(false);
   }, []);

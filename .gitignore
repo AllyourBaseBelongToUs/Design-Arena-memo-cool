@@ -28,10 +28,7 @@ yarn-error.log*
 lerna-debug.log*
 pnpm-debug.log*
 
-# Package manager lock files
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
+# Package manager cache directories
 .pnpm-store/
 
 # Runtime data
@@ -880,8 +877,9 @@ venv.bak/
 
 # Data files
 *.csv
-*.json
 *.xml
+!**/.eslintrc.json
+!**/tsconfig.json
 *.parquet
 data/
 datasets/
@@ -915,3 +913,8 @@ config/database.yml
 *.zip
 
 # ===== END =====
+# Allow app manifests and library sources committed in this repo
+!**/package.json
+!**/package-lock.json
+!spaced-app/src/lib/
+!spaced-app/src/lib/**
