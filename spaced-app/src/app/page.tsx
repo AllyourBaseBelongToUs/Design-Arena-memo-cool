@@ -30,6 +30,7 @@ type SessionStats = {
 };
 
 const STORAGE_KEY = 'agentic-spaced-repetition-v1';
+const LIBRARY_PREFS_KEY = 'agentic-spaced-repetition-library-settings-v1';
 const INITIAL_SESSION: SessionStats = {
   reviews: 0,
   again: 0,
@@ -51,6 +52,9 @@ export default function Home() {
     imageData: '',
   });
   const [imageError, setImageError] = useState<string | null>(null);
+  const [libraryShowAnswers, setLibraryShowAnswers] = useState(false);
+  const [libraryRevealedCards, setLibraryRevealedCards] = useState<Record<string, boolean>>({});
+  const [libraryPrefsHydrated, setLibraryPrefsHydrated] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -79,6 +83,53 @@ export default function Home() {
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
   }, [cards, hydrated]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const rawPrefs = window.localStorage.getItem(LIBRARY_PREFS_KEY);
+      if (rawPrefs) {
+        const parsed = JSON.parse(rawPrefs) as {
+          showAnswers?: boolean;
+          revealedOnce?: string[];
+        };
+        if (typeof parsed.showAnswers === 'boolean') {
+          setLibraryShowAnswers(parsed.showAnswers);
+        }
+        if (Array.isArray(parsed.revealedOnce)) {
+          const revealedMap = parsed.revealedOnce.reduce<Record<string, boolean>>((acc, id) => {
+            acc[id] = true;
+            return acc;
+          }, {});
+          setLibraryRevealedCards(revealedMap);
+        }
+      }
+    } catch (error) {
+      console.error('Unable to load library preferences', error);
+    } finally {
+      setLibraryPrefsHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!libraryPrefsHydrated || typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const revealedOnce = Object.keys(libraryRevealedCards).filter(
+        (id) => libraryRevealedCards[id],
+      );
+      const payload = {
+        showAnswers: libraryShowAnswers,
+        revealedOnce,
+      };
+      window.localStorage.setItem(LIBRARY_PREFS_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.error('Unable to save library preferences', error);
+    }
+  }, [libraryShowAnswers, libraryRevealedCards, libraryPrefsHydrated]);
 
   useEffect(() => {
     const tick = () => setNow(Date.now());
@@ -114,6 +165,36 @@ export default function Home() {
 
   const handleDelete = useCallback((id: string) => {
     setCards((prev) => prev.filter((card) => card.id !== id));
+    setLibraryRevealedCards((prev) => {
+      if (!prev[id]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const handleToggleLibraryAnswers = useCallback(() => {
+    setLibraryShowAnswers((prev) => {
+      const next = !prev;
+      if (!next) {
+        setLibraryRevealedCards({});
+      }
+      return next;
+    });
+  }, []);
+
+  const handleRevealLibraryCard = useCallback((id: string) => {
+    setLibraryRevealedCards((prev) => {
+      if (prev[id]) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [id]: true,
+      };
+    });
   }, []);
 
   const resetToSampleDeck = useCallback(() => {
@@ -506,72 +587,104 @@ export default function Home() {
             </div>
 
             <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg shadow-slate-950/40">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-2xl font-semibold text-white">Card Library</h2>
-                <span className="text-xs uppercase tracking-widest text-slate-500">
-                  {totalCards} saved
-                </span>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl font-semibold text-white">Card Library</h2>
+                  <span className="text-xs uppercase tracking-widest text-slate-500">
+                    {totalCards} saved
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleLibraryAnswers}
+                  aria-pressed={libraryShowAnswers}
+                  className="inline-flex items-center justify-center gap-2 self-start rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:border-emerald-400 hover:text-emerald-200 sm:self-auto"
+                >
+                  <span aria-hidden className="text-base">
+                    {libraryShowAnswers ? '👁️' : '🔒'}
+                  </span>
+                  {libraryShowAnswers ? 'Hide answers' : 'Show answers'}
+                </button>
               </div>
               <ul className="mt-5 space-y-4">
                 {cards.length ? (
-                  cards.map((card) => (
-                    <li
-                      key={card.id}
-                      className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-200 shadow-sm shadow-black/20"
-                    >
-                      <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
-                        {card.image ? (
-                          <div className="relative h-24 w-full overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/50 sm:w-24">
-                            <Image
-                              src={card.image}
-                              alt={card.prompt}
-                              fill
-                              sizes="96px"
-                              className="object-cover"
-                              unoptimized
-                            />
-                          </div>
-                        ) : null}
-                        <div className="flex-1 space-y-2">
-                          <p className="text-sm font-semibold text-slate-100">{card.prompt}</p>
-                          <p className="text-sm text-slate-400">{card.answer}</p>
-                          <div className="flex flex-wrap gap-3 text-xs text-slate-400">
-                            <span>
-                              Due:{' '}
-                              <span className="font-medium text-slate-200">
-                                {nextDueIn(card, now)}
-                              </span>
-                            </span>
-                            {card.lastReview ? (
+                  cards.map((card) => {
+                    const isAnswerVisible = libraryShowAnswers || libraryRevealedCards[card.id];
+                    return (
+                      <li
+                        key={card.id}
+                        className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-200 shadow-sm shadow-black/20"
+                      >
+                        <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+                          {card.image ? (
+                            <div className="relative h-24 w-full overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/50 sm:w-24">
+                              <Image
+                                src={card.image}
+                                alt={card.prompt}
+                                fill
+                                sizes="96px"
+                                className="object-cover"
+                                unoptimized
+                              />
+                            </div>
+                          ) : null}
+                          <div className="flex-1 space-y-2">
+                            <p className="text-sm font-semibold text-slate-100">{card.prompt}</p>
+                            {isAnswerVisible ? (
+                              <p className="text-sm text-slate-400">{card.answer}</p>
+                            ) : (
+                              <div className="flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                                <span className="flex items-center gap-2">
+                                  <span aria-hidden className="text-base">🔒</span>
+                                  Answer hidden
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevealLibraryCard(card.id)}
+                                  className="inline-flex items-center justify-center rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-emerald-400 hover:text-emerald-200"
+                                >
+                                  Reveal once
+                                </button>
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-3 text-xs text-slate-400">
                               <span>
-                                Last review:{' '}
+                                Due:{' '}
                                 <span className="font-medium text-slate-200">
-                                  {formatReviewDate(card.lastReview)}
+                                  {nextDueIn(card, now)}
                                 </span>
                               </span>
-                            ) : (
-                              <span className="font-medium text-emerald-300">New</span>
-                            )}
-                            <span>
-                              Ease:{' '}
-                              <span className="font-medium text-slate-200">
-                                {card.easeFactor.toFixed(2)}
+                              {card.lastReview ? (
+                                <span>
+                                  Last review:{' '}
+                                  <span className="font-medium text-slate-200">
+                                    {formatReviewDate(card.lastReview)}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="font-medium text-emerald-300">New</span>
+                              )}
+                              <span>
+                                Ease:{' '}
+                                <span className="font-medium text-slate-200">
+                                  {card.easeFactor.toFixed(2)}
+                                </span>
                               </span>
-                            </span>
+                            </div>
+                          </div>
+                          <div className="flex items-start justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(card.id)}
+                              className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-300 transition hover:border-red-400 hover:bg-red-500/10"
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-start justify-end">
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(card.id)}
-                            className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-300 transition hover:border-red-400 hover:bg-red-500/10"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    </li>
-                  ))
+                      </li>
+                    );
+                  })
                 ) : (
                   <li className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 text-center text-sm text-slate-400">
                     No cards saved yet. Add a few facts to begin training.
