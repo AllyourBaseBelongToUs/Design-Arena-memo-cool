@@ -55,6 +55,8 @@ export default function Home() {
   const [libraryShowAnswers, setLibraryShowAnswers] = useState(false);
   const [libraryRevealedCards, setLibraryRevealedCards] = useState<Record<string, boolean>>({});
   const [libraryPrefsHydrated, setLibraryPrefsHydrated] = useState(false);
+  const [hasUserCards, setHasUserCards] = useState(false);
+  const [activeTab, setActiveTab] = useState<'study' | 'library'>('study');
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -66,12 +68,15 @@ export default function Home() {
       if (raw) {
         const parsed = JSON.parse(raw) as StudyCard[];
         setCards(parsed);
+        setHasUserCards(true); // User has saved cards, hide the button
       } else {
         setCards(buildSampleDeck());
+        // hasUserCards remains false - show the button
       }
     } catch (error) {
       console.error('Unable to load saved deck', error);
       setCards(buildSampleDeck());
+      // hasUserCards remains false - show the button
     } finally {
       setHydrated(true);
     }
@@ -273,6 +278,7 @@ export default function Home() {
         image,
       });
       setCards((prev) => [...prev, newCard]);
+      setHasUserCards(true);
       setFormState({
         prompt: '',
         answer: '',
@@ -303,6 +309,7 @@ export default function Home() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-4">
+              {!hasUserCards && (
               <button
                 type="button"
                 onClick={resetToSampleDeck}
@@ -310,6 +317,7 @@ export default function Home() {
               >
                 Load Sample Deck
               </button>
+              )}
               <button
                 type="button"
                 onClick={clearProgress}
@@ -341,251 +349,284 @@ export default function Home() {
           </dl>
         </header>
 
-        <main className="grid gap-8 lg:grid-cols-[1.6fr_1fr] xl:gap-10">
-          <section className="space-y-6">
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-slate-950/40">
-              <header className="mb-6 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-white">Review Queue</h2>
-                  <p className="text-sm text-slate-400">
-                    Press reveal to see the answer, then grade your recall to update the schedule.
-                  </p>
-                </div>
-                <span className="rounded-full border border-slate-700 px-4 py-1 text-sm font-medium text-slate-300">
-                  {totalDue} due
-                </span>
-              </header>
+        <main className="space-y-6">
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-1 shadow-lg shadow-slate-950/40">
+            <div className="flex">
+              <button
+                type="button"
+                onClick={() => setActiveTab('study')}
+                className={`flex-1 rounded-2xl px-6 py-3 text-sm font-semibold transition ${
+                  activeTab === 'study'
+                    ? 'bg-emerald-500 text-slate-950'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Study & Add Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('library')}
+                className={`flex-1 rounded-2xl px-6 py-3 text-sm font-semibold transition ${
+                  activeTab === 'library'
+                    ? 'bg-emerald-500 text-slate-950'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Card Library ({totalCards})
+              </button>
+            </div>
+          </div>
 
-              {currentCard ? (
-                <div className="flex flex-col gap-6">
-                  <article className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-sm shadow-black/40">
-                    <div className="flex flex-col gap-4">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                          Prompt
-                        </p>
-                        <p className="mt-2 text-lg font-medium text-slate-100">
-                          {currentCard.prompt}
-                        </p>
-                      </div>
-                      {currentCard.image ? (
-                        <div className="relative h-64 overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/40">
+          {activeTab === 'study' && (
+            <div className="grid gap-8 lg:grid-cols-[1.6fr_1fr] xl:gap-10">
+              <section className="space-y-6">
+                <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-slate-950/40">
+                  <header className="mb-6 flex items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-2xl font-semibold text-white">Review Queue</h2>
+                      <p className="text-sm text-slate-400">
+                        Press reveal to see the answer, then grade your recall to update the schedule.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-slate-700 px-4 py-1 text-sm font-medium text-slate-300">
+                      {totalDue} due
+                    </span>
+                  </header>
+
+                  {currentCard ? (
+                    <div className="flex flex-col gap-6">
+                      <article className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-sm shadow-black/40">
+                        <div className="flex flex-col gap-4">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                              Prompt
+                            </p>
+                            <p className="mt-2 text-lg font-medium text-slate-100">
+                              {currentCard.prompt}
+                            </p>
+                          </div>
+                          {currentCard.image ? (
+                            <div className="relative h-64 overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/40">
+                              <Image
+                                src={currentCard.image}
+                                alt={currentCard.prompt}
+                                fill
+                                sizes="(max-width: 1024px) 100vw, 640px"
+                                className="object-cover"
+                                unoptimized
+                              />
+                            </div>
+                          ) : null}
+                          {showAnswer ? (
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                                Answer
+                              </p>
+                              <p className="mt-2 whitespace-pre-line text-base text-slate-100">
+                                {currentCard.answer}
+                              </p>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleReveal}
+                              className="mt-2 self-start rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+                            >
+                              Reveal Answer
+                            </button>
+                          )}
+                        </div>
+                      </article>
+
+                      {showAnswer ? (
+                        <div className="grid gap-3 sm:grid-cols-4">
+                          <button
+                            type="button"
+                            onClick={() => handleGrade(currentCard, 'again')}
+                            className="rounded-full border border-red-500/60 bg-red-500/20 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/30"
+                          >
+                            Again
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleGrade(currentCard, 'hard')}
+                            className="rounded-full border border-amber-500/60 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/30"
+                          >
+                            Hard
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleGrade(currentCard, 'good')}
+                            className="rounded-full border border-emerald-500/60 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/30"
+                          >
+                            Good
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleGrade(currentCard, 'easy')}
+                            className="rounded-full border border-sky-500/60 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/30"
+                          >
+                            Easy
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-10 text-center">
+                      <p className="text-xl font-medium text-slate-200">You&apos;re all caught up 🎉</p>
+                      <p className="max-w-md text-sm text-slate-400">
+                        Add new cards or revisit upcoming reviews when they&apos;re due. Consistency is key
+                        to long-term retention.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-6 grid gap-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-6 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
+                        Session Stats
+                      </p>
+                      <dl className="mt-3 space-y-2 text-sm text-slate-300">
+                        <div className="flex items-center justify-between">
+                          <dt>Total Reviews</dt>
+                          <dd className="font-medium text-slate-100">{sessionStats.reviews}</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt>Again</dt>
+                          <dd className="font-medium text-red-300">{sessionStats.again}</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt>Hard</dt>
+                          <dd className="font-medium text-amber-300">{sessionStats.hard}</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt>Good</dt>
+                          <dd className="font-medium text-emerald-300">{sessionStats.good}</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt>Easy</dt>
+                          <dd className="font-medium text-sky-300">{sessionStats.easy}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
+                        Upcoming Reviews
+                      </p>
+                      <ul className="mt-3 space-y-2 text-sm text-slate-300">
+                        {upcomingCards.slice(0, 5).map((card) => (
+                          <li
+                            key={card.id}
+                            className="flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-950/40 px-3 py-2"
+                          >
+                            <span className="truncate pr-3">{card.prompt}</span>
+                            <span className="text-xs font-medium text-slate-400">
+                              {nextDueIn(card, now)}
+                            </span>
+                          </li>
+                        ))}
+                        {!upcomingCards.length && (
+                          <li className="rounded-xl border border-slate-800/60 bg-slate-950/40 px-4 py-3 text-slate-400">
+                            No future reviews scheduled yet.
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-6">
+                <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg shadow-slate-950/40">
+                  <h2 className="text-2xl font-semibold text-white">Add New Fact</h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Capture a prompt, the answer you want to remember, and an optional supporting image.
+                  </p>
+                  <form className="mt-6 space-y-4" onSubmit={handleAddCard}>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-200" htmlFor="prompt">
+                        Prompt
+                      </label>
+                      <input
+                        id="prompt"
+                        name="prompt"
+                        value={formState.prompt}
+                        onChange={(event) => handleFormChange('prompt', event.target.value)}
+                        placeholder="e.g. What is the capital of Iceland?"
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/40"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-200" htmlFor="answer">
+                        Answer
+                      </label>
+                      <textarea
+                        id="answer"
+                        name="answer"
+                        rows={4}
+                        value={formState.answer}
+                        onChange={(event) => handleFormChange('answer', event.target.value)}
+                        placeholder="Include the full answer you want to recall."
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/40"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-200" htmlFor="image-url">
+                        Image URL (optional)
+                      </label>
+                      <input
+                        id="image-url"
+                        name="imageUrl"
+                        value={formState.imageUrl}
+                        onChange={(event) => handleFormChange('imageUrl', event.target.value)}
+                        placeholder="https://…"
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/40"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-200" htmlFor="image-upload">
+                        Upload Image (optional)
+                      </label>
+                      <input
+                        id="image-upload"
+                        name="imageFile"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="w-full rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-full file:border-0 file:bg-emerald-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950 hover:file:bg-emerald-400"
+                      />
+                      {imageError ? (
+                        <p className="text-xs text-red-300">{imageError}</p>
+                      ) : null}
+                      {(formState.imageData || formState.imageUrl) && (
+                        <div className="relative h-56 overflow-hidden rounded-2xl border border-slate-800/80">
                           <Image
-                            src={currentCard.image}
-                            alt={currentCard.prompt}
+                            src={formState.imageData || formState.imageUrl}
+                            alt="Selected preview"
                             fill
-                            sizes="(max-width: 1024px) 100vw, 640px"
+                            sizes="(max-width: 1024px) 100vw, 320px"
                             className="object-cover"
                             unoptimized
                           />
                         </div>
-                      ) : null}
-                      {showAnswer ? (
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                            Answer
-                          </p>
-                          <p className="mt-2 whitespace-pre-line text-base text-slate-100">
-                            {currentCard.answer}
-                          </p>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleReveal}
-                          className="mt-2 self-start rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
-                        >
-                          Reveal Answer
-                        </button>
                       )}
                     </div>
-                  </article>
-
-                  {showAnswer ? (
-                    <div className="grid gap-3 sm:grid-cols-4">
-                      <button
-                        type="button"
-                        onClick={() => handleGrade(currentCard, 'again')}
-                        className="rounded-full border border-red-500/60 bg-red-500/20 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/30"
-                      >
-                        Again
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleGrade(currentCard, 'hard')}
-                        className="rounded-full border border-amber-500/60 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/30"
-                      >
-                        Hard
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleGrade(currentCard, 'good')}
-                        className="rounded-full border border-emerald-500/60 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/30"
-                      >
-                        Good
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleGrade(currentCard, 'easy')}
-                        className="rounded-full border border-sky-500/60 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/30"
-                      >
-                        Easy
-                      </button>
-                    </div>
-                  ) : null}
+                    <button
+                      type="submit"
+                      className="w-full rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                      disabled={!formState.prompt.trim() || !formState.answer.trim()}
+                    >
+                      Add Fact Card
+                    </button>
+                  </form>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-10 text-center">
-                  <p className="text-xl font-medium text-slate-200">You&apos;re all caught up 🎉</p>
-                  <p className="max-w-md text-sm text-slate-400">
-                    Add new cards or revisit upcoming reviews when they&apos;re due. Consistency is key
-                    to long-term retention.
-                  </p>
-                </div>
-              )}
-
-              <div className="mt-6 grid gap-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-6 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                    Session Stats
-                  </p>
-                  <dl className="mt-3 space-y-2 text-sm text-slate-300">
-                    <div className="flex items-center justify-between">
-                      <dt>Total Reviews</dt>
-                      <dd className="font-medium text-slate-100">{sessionStats.reviews}</dd>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <dt>Again</dt>
-                      <dd className="font-medium text-red-300">{sessionStats.again}</dd>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <dt>Hard</dt>
-                      <dd className="font-medium text-amber-300">{sessionStats.hard}</dd>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <dt>Good</dt>
-                      <dd className="font-medium text-emerald-300">{sessionStats.good}</dd>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <dt>Easy</dt>
-                      <dd className="font-medium text-sky-300">{sessionStats.easy}</dd>
-                    </div>
-                  </dl>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                    Upcoming Reviews
-                  </p>
-                  <ul className="mt-3 space-y-2 text-sm text-slate-300">
-                    {upcomingCards.slice(0, 5).map((card) => (
-                      <li
-                        key={card.id}
-                        className="flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-950/40 px-3 py-2"
-                      >
-                        <span className="truncate pr-3">{card.prompt}</span>
-                        <span className="text-xs font-medium text-slate-400">
-                          {nextDueIn(card, now)}
-                        </span>
-                      </li>
-                    ))}
-                    {!upcomingCards.length && (
-                      <li className="rounded-xl border border-slate-800/60 bg-slate-950/40 px-4 py-3 text-slate-400">
-                        No future reviews scheduled yet.
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              </div>
+              </section>
             </div>
-          </section>
+          )}
 
-          <section className="space-y-6">
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg shadow-slate-950/40">
-              <h2 className="text-2xl font-semibold text-white">Add New Fact</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Capture a prompt, the answer you want to remember, and an optional supporting image.
-              </p>
-              <form className="mt-6 space-y-4" onSubmit={handleAddCard}>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-200" htmlFor="prompt">
-                    Prompt
-                  </label>
-                  <input
-                    id="prompt"
-                    name="prompt"
-                    value={formState.prompt}
-                    onChange={(event) => handleFormChange('prompt', event.target.value)}
-                    placeholder="e.g. What is the capital of Iceland?"
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/40"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-200" htmlFor="answer">
-                    Answer
-                  </label>
-                  <textarea
-                    id="answer"
-                    name="answer"
-                    rows={4}
-                    value={formState.answer}
-                    onChange={(event) => handleFormChange('answer', event.target.value)}
-                    placeholder="Include the full answer you want to recall."
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/40"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-200" htmlFor="image-url">
-                    Image URL (optional)
-                  </label>
-                  <input
-                    id="image-url"
-                    name="imageUrl"
-                    value={formState.imageUrl}
-                    onChange={(event) => handleFormChange('imageUrl', event.target.value)}
-                    placeholder="https://…"
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/40"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-200" htmlFor="image-upload">
-                    Upload Image (optional)
-                  </label>
-                  <input
-                    id="image-upload"
-                    name="imageFile"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                    className="w-full rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-full file:border-0 file:bg-emerald-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950 hover:file:bg-emerald-400"
-                  />
-                  {imageError ? (
-                    <p className="text-xs text-red-300">{imageError}</p>
-                  ) : null}
-                  {(formState.imageData || formState.imageUrl) && (
-                    <div className="relative h-56 overflow-hidden rounded-2xl border border-slate-800/80">
-                      <Image
-                        src={formState.imageData || formState.imageUrl}
-                        alt="Selected preview"
-                        fill
-                        sizes="(max-width: 1024px) 100vw, 320px"
-                        className="object-cover"
-                        unoptimized
-                      />
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="submit"
-                  className="w-full rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-                  disabled={!formState.prompt.trim() || !formState.answer.trim()}
-                >
-                  Add Fact Card
-                </button>
-              </form>
-            </div>
-
+          {activeTab === 'library' && (
             <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg shadow-slate-950/40">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
@@ -692,7 +733,7 @@ export default function Home() {
                 )}
               </ul>
             </div>
-          </section>
+          )}
         </main>
 
         <footer className="pb-6 text-center text-xs text-slate-500">
