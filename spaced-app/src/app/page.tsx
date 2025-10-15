@@ -63,20 +63,37 @@ export default function Home() {
       return;
     }
 
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as StudyCard[];
-        setCards(parsed);
-      } else {
-        setCards(buildSampleDeck());
-      }
-    } catch (error) {
-      console.error('Unable to load saved deck', error);
-      setCards(buildSampleDeck());
-    } finally {
-      setHydrated(true);
-    }
+    // Try to load cards from file storage API
+    fetch('/api/cards')
+      .then(response => response.json())
+      .then(data => {
+        if (data.cards && Array.isArray(data.cards)) {
+          setCards(data.cards);
+        } else {
+          // No saved cards, load sample deck
+          setCards(buildSampleDeck());
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load cards from API, falling back to localStorage:', error);
+
+        // Fallback to localStorage if API fails
+        try {
+          const raw = window.localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw) as StudyCard[];
+            setCards(parsed);
+          } else {
+            setCards(buildSampleDeck());
+          }
+        } catch (fallbackError) {
+          console.error('localStorage fallback also failed:', fallbackError);
+          setCards(buildSampleDeck());
+        }
+      })
+      .finally(() => {
+        setHydrated(true);
+      });
   }, []);
 
   // Check if we have any cards after loading and hide button accordingly
@@ -90,54 +107,134 @@ export default function Home() {
     if (!hydrated || typeof window === 'undefined') {
       return;
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+
+    // Save cards to file storage API
+    fetch('/api/cards', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ cards }),
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (!data.success) {
+          throw new Error('API returned unsuccessful response');
+        }
+      })
+      .catch(error => {
+        console.error('Failed to save cards to API, falling back to localStorage:', error);
+
+        // Fallback to localStorage if API fails
+        try {
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+        } catch (fallbackError) {
+          console.error('localStorage fallback also failed:', fallbackError);
+        }
+      });
   }, [cards, hydrated]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
-    try {
-      const rawPrefs = window.localStorage.getItem(LIBRARY_PREFS_KEY);
-      if (rawPrefs) {
-        const parsed = JSON.parse(rawPrefs) as {
-          showAnswers?: boolean;
-          revealedOnce?: string[];
-        };
-        if (typeof parsed.showAnswers === 'boolean') {
-          setLibraryShowAnswers(parsed.showAnswers);
+
+    // Try to load preferences from API
+    fetch('/api/prefs')
+      .then(response => response.json())
+      .then(data => {
+        if (data.preferences) {
+          const prefs = data.preferences;
+          if (typeof prefs.showAnswers === 'boolean') {
+            setLibraryShowAnswers(prefs.showAnswers);
+          }
+          if (Array.isArray(prefs.revealedOnce)) {
+            const revealedMap = prefs.revealedOnce.reduce((acc: Record<string, boolean>, id: string) => {
+              acc[id] = true;
+              return acc;
+            }, {} as Record<string, boolean>);
+            setLibraryRevealedCards(revealedMap);
+          }
         }
+      })
+      .catch(error => {
+        console.error('Failed to load preferences from API, falling back to localStorage:', error);
+
+        // Fallback to localStorage if API fails
+        try {
+          const rawPrefs = window.localStorage.getItem(LIBRARY_PREFS_KEY);
+          if (rawPrefs) {
+            const parsed = JSON.parse(rawPrefs) as {
+              showAnswers?: boolean;
+              revealedOnce?: string[];
+            };
+            if (typeof parsed.showAnswers === 'boolean') {
+              setLibraryShowAnswers(parsed.showAnswers);
+            }
         if (Array.isArray(parsed.revealedOnce)) {
-          const revealedMap = parsed.revealedOnce.reduce<Record<string, boolean>>((acc, id) => {
+          const revealedMap = parsed.revealedOnce.reduce((acc: Record<string, boolean>, id: string) => {
             acc[id] = true;
             return acc;
-          }, {});
+          }, {} as Record<string, boolean>);
           setLibraryRevealedCards(revealedMap);
         }
-      }
-    } catch (error) {
-      console.error('Unable to load library preferences', error);
-    } finally {
-      setLibraryPrefsHydrated(true);
-    }
+          }
+        } catch (fallbackError) {
+          console.error('localStorage fallback also failed:', fallbackError);
+        }
+      })
+      .finally(() => {
+        setLibraryPrefsHydrated(true);
+      });
   }, []);
 
   useEffect(() => {
     if (!libraryPrefsHydrated || typeof window === 'undefined') {
       return;
     }
-    try {
-      const revealedOnce = Object.keys(libraryRevealedCards).filter(
-        (id) => libraryRevealedCards[id],
-      );
-      const payload = {
-        showAnswers: libraryShowAnswers,
-        revealedOnce,
-      };
-      window.localStorage.setItem(LIBRARY_PREFS_KEY, JSON.stringify(payload));
-    } catch (error) {
-      console.error('Unable to save library preferences', error);
-    }
+
+    // Save preferences to API
+    const revealedOnce = Object.keys(libraryRevealedCards).filter(
+      (id) => libraryRevealedCards[id],
+    );
+    const payload = {
+      showAnswers: libraryShowAnswers,
+      revealedOnce,
+    };
+
+    fetch('/api/prefs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ preferences: payload }),
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (!data.success) {
+          throw new Error('API returned unsuccessful response');
+        }
+      })
+      .catch(error => {
+        console.error('Failed to save preferences to API, falling back to localStorage:', error);
+
+        // Fallback to localStorage if API fails
+        try {
+          window.localStorage.setItem(LIBRARY_PREFS_KEY, JSON.stringify(payload));
+        } catch (fallbackError) {
+          console.error('localStorage fallback also failed:', fallbackError);
+        }
+      });
   }, [libraryShowAnswers, libraryRevealedCards, libraryPrefsHydrated]);
 
   useEffect(() => {

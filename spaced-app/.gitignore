@@ -38,3 +38,7 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# user data files (file-based storage)
+data/
+data/**/*.json
