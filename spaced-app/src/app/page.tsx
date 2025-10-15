@@ -68,19 +68,23 @@ export default function Home() {
       if (raw) {
         const parsed = JSON.parse(raw) as StudyCard[];
         setCards(parsed);
-        setHasUserCards(true); // User has saved cards, hide the button
       } else {
         setCards(buildSampleDeck());
-        // hasUserCards remains false - show the button
       }
     } catch (error) {
       console.error('Unable to load saved deck', error);
       setCards(buildSampleDeck());
-      // hasUserCards remains false - show the button
     } finally {
       setHydrated(true);
     }
   }, []);
+
+  // Check if we have any cards after loading and hide button accordingly
+  useEffect(() => {
+    if (hydrated && cards.length > 0) {
+      setHasUserCards(true);
+    }
+  }, [hydrated, cards.length]);
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') {
